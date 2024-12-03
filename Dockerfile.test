@@ -1,0 +1,61 @@
+# Test environment
+FROM gcc:12
+
+# Install build and test dependencies
+RUN apt-get update && apt-get install -y \
+    cmake \
+    build-essential \
+    libgtest-dev \
+    libgmock-dev \
+    googletest \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /test
+
+# Copy source files and tests
+COPY include ./include
+COPY src ./src
+COPY tests ./tests
+COPY CMakeLists.txt .
+
+# Create build directory
+WORKDIR /test/build
+
+# Configure and build tests
+RUN cmake .. \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DBUILD_TESTING=ON \
+    && cmake --build . --verbose
+
+# Run tests with verbose output
+RUN echo "Running Message Interface Tests..." && \
+    ./tests/message_interface_test --gtest_break_on_failure --gtest_output=xml || true
+
+RUN echo "Running ARINC429 Tests..." && \
+    ./tests/arinc429_message_test --gtest_break_on_failure --gtest_output=xml || true
+
+RUN echo "Running CANJ1939 Tests..." && \
+    ./tests/canj1939_message_test --gtest_break_on_failure --gtest_output=xml || true
+
+RUN echo "Running Generator Interface Tests..." && \
+    ./tests/generator_interface_test --gtest_break_on_failure --gtest_output=xml || true
+
+RUN echo "Running ARINC429 Generator Tests..." && \
+    ./tests/arinc429_generator_test --gtest_break_on_failure --gtest_output=xml || true
+
+RUN echo "Running CANJ1939 Generator Tests..." && \
+    ./tests/canj1939_generator_test --gtest_break_on_failure --gtest_output=xml || true
+
+# Show all test results
+RUN for xml in *.xml; do \
+        echo "=== Test Results for $xml ==="; \
+        cat $xml || true; \
+    done
+
+# Run both tests when container starts
+CMD ["sh", "-c", "./tests/message_interface_test && \
+        ./tests/arinc429_message_test && \
+        ./tests/canj1939_message_test && \
+        ./tests/generator_interface_test && \
+        ./tests/arinc429_generator_test && \
+        ./tests/canj1939_generator_test"]
